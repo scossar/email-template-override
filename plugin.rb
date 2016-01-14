@@ -18,22 +18,26 @@ after_initialize do
   <title>#{title}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 </head>
-<body>
       HEAD
     end
 
-    def create_document(body_contents)
-      head + body_contents + "</body></html>"
+    def wrap_html_part(body_contents)
+      head +  "<body>" + body_contents + "</body></html>"
+    end
+
+    def wrap_template(body_contents)
+      "#{head}<body><table class=\"wrap\"><tr><td>#{body_contents}</td></tr></table></body></html>"
     end
 
     def html
       if @message.html_part
-        style = Email::Styles.new(create_document(@message.html_part.body.to_s), @opts)
+        style = Email::Styles.new(wrap_html_part(@message.html_part.body.to_s), @opts)
         style.format_basic
         style.format_html
       else
-        style = Email::Styles.new(create_document(PrettyText.cook(text)), @opts)
+        style = Email::Styles.new(wrap_template(PrettyText.cook(text)), @opts)
         style.format_basic
+        style.format_html
       end
       style.to_html
     end
