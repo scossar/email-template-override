@@ -2,7 +2,55 @@
 # version: 0.1
 
 after_initialize do
-  # This is just a quick way of overriding the email/notification template
+
+  # Adds a head with title and meta tags to the message html string before it is
+  # used to initialize Email::Styles
+  Email::Renderer.class_eval do
+    def title
+      @message.subject ? @message.subject : "An email from #{SiteSetting.title}"
+    end
+
+    def head
+      <<-HEAD
+<html lang="#{SiteSetting.default_locale}">
+<head>
+  <meta charset="UTF-8">
+  <title>#{title}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+</head>
+<body>
+      HEAD
+    end
+
+    def create_document(body_contents)
+      head + body_contents + "</body></html>"
+    end
+
+    def html
+      if @message.html_part
+        style = Email::Styles.new(create_document(@message.html_part.body.to_s), @opts)
+        style.format_basic
+        style.format_html
+      else
+        style = Email::Styles.new(create_document(PrettyText.cook(text)), @opts)
+        style.format_basic
+      end
+      style.to_html
+    end
+  end
+
+  # Use the full document instead of `Nokogiri::HTML.fragment()`
+  Email::Styles.class_eval do
+    def initialize(html, opts=nil)
+      @html = html
+      @opts = opts || {}
+      @fragment = Nokogiri::HTML(@html)
+    end
+  end
+
+  # This is just a quick way of overriding the email/notification template.
+  # The only thing that's changed here from the Discourse code is the path given
+  # to UserNotificationRender.
   UserNotifications.class_eval do
 
     class UserNotificationRenderer < ActionView::Base
@@ -55,6 +103,7 @@ after_initialize do
       if opts[:use_template_html]
         topic_excerpt = post.excerpt.gsub("\n", " ") if post.is_first_post? && post.excerpt
       else
+        # notification_view_path returns the plugin's view
         html = UserNotificationRenderer.new([notification_view_path]).render(
             template: 'email/notification',
             format: :html,
@@ -103,4 +152,6 @@ after_initialize do
       build_email(user.email, email_opts)
     end
   end
+
+
 end
